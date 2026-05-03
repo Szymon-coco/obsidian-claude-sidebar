@@ -7741,6 +7741,17 @@ var ClaudeSidebarSettingsTab = class extends import_obsidian.PluginSettingTab {
           }
           await this.plugin.saveData(this.plugin.pluginData);
         }));
+    if (currentBackend.yoloFlag) {
+      new import_obsidian.Setting(containerEl)
+        .setName("Disable YOLO mode")
+        .setDesc("Hide all YOLO mode options from menus and commands.")
+        .addToggle(toggle => toggle
+          .setValue(this.plugin.pluginData.disableYolo)
+          .onChange(async (value) => {
+            this.plugin.pluginData.disableYolo = value;
+            await this.plugin.saveData(this.plugin.pluginData);
+          }));
+    }
   }
 };
 var VaultTerminalPlugin = class extends import_obsidian.Plugin {
@@ -7781,7 +7792,7 @@ var VaultTerminalPlugin = class extends import_obsidian.Plugin {
       e.preventDefault();
       const menu = new import_obsidian.Menu();
       const activeBackend = CLI_BACKENDS[this.pluginData.cliBackend || "claude"];
-      if (activeBackend.yoloFlag) {
+      if (activeBackend.yoloFlag && !this.pluginData.disableYolo) {
         menu.addItem((item) => {
           item.setTitle("Open in YOLO mode")
             .setIcon("zap")
@@ -7845,7 +7856,7 @@ var VaultTerminalPlugin = class extends import_obsidian.Plugin {
       name: "New Tab (YOLO mode)",
       checkCallback: (checking) => {
         const backend = CLI_BACKENDS[this.pluginData.cliBackend || "claude"];
-        if (!backend?.yoloFlag) return false;
+        if (!backend?.yoloFlag || this.pluginData.disableYolo) return false;
         if (!checking) this.createNewTab(null, true);
         return true;
       }
@@ -7941,7 +7952,7 @@ var VaultTerminalPlugin = class extends import_obsidian.Plugin {
               })
           );
           const folderBackend = CLI_BACKENDS[this.pluginData.cliBackend || "claude"];
-          if (folderBackend.yoloFlag) {
+          if (folderBackend.yoloFlag && !this.pluginData.disableYolo) {
             menu.addItem(item =>
               item
                 .setTitle('Open Claude here (YOLO)')
@@ -7949,6 +7960,27 @@ var VaultTerminalPlugin = class extends import_obsidian.Plugin {
                 .onClick(() => {
                   const absolutePath = this.app.vault.adapter.getFullPath(file.path);
                   this.createNewTab(absolutePath, true);
+                })
+            );
+          }
+          // Change working directory of active Claude session
+          const cwdLeaves = this.app.workspace.getLeavesOfType(VIEW_TYPE);
+          if (cwdLeaves.length > 0) {
+            menu.addItem(item =>
+              item
+                .setTitle('Set as Claude working directory')
+                .setIcon('folder-input')
+                .onClick(() => {
+                  const absolutePath = this.app.vault.adapter.getFullPath(file.path);
+                  let leaf = cwdLeaves[0];
+                  if (this.lastActiveTerminalLeaf && cwdLeaves.includes(this.lastActiveTerminalLeaf)) {
+                    leaf = this.lastActiveTerminalLeaf;
+                  }
+                  const view = leaf.view;
+                  if (view instanceof TerminalView) {
+                    view.workingDir = absolutePath;
+                    view.startShell(absolutePath, view.yoloMode);
+                  }
                 })
             );
           }
