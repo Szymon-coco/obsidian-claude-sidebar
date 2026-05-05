@@ -7986,10 +7986,21 @@ var VaultTerminalPlugin = class extends import_obsidian.Plugin {
                 .onClick(() => {
                   const absolutePath = this.app.vault.adapter.getFullPath(file.path);
                   const view = this.lastActiveTerminalLeaf.view;
-                  if (view instanceof TerminalView) {
+                  if (view instanceof TerminalView && view.proc && !view.proc.killed) {
                     view.workingDir = absolutePath;
                     view.leaf.updateHeader();
-                    view.startShell(absolutePath, view.yoloMode);
+                    const translatedPath = this.getPath(absolutePath);
+                    const backend = view.getBackend();
+                    let relaunchCmd = backend.binary;
+                    if (view.yoloMode && backend.yoloFlag) relaunchCmd += " " + backend.yoloFlag;
+                    const backendKey = this.pluginData.cliBackend || "claude";
+                    const flags = (this.pluginData.flagsByProvider || {})[backendKey];
+                    if (flags) relaunchCmd += " " + flags;
+                    view.proc.stdin?.write('/exit\r');
+                    setTimeout(() => {
+                      view.proc?.stdin?.write(`cd "${translatedPath}"\r`);
+                      setTimeout(() => view.proc?.stdin?.write(`${relaunchCmd}\r`), 200);
+                    }, 500);
                   }
                 })
             );
