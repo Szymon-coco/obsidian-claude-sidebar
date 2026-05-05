@@ -7995,7 +7995,7 @@ var VaultTerminalPlugin = class extends import_obsidian.Plugin {
                     view.workingDir = absolutePath;
                     view.leaf.updateHeader();
                     const translatedPath = this.getPath(absolutePath);
-                    view.proc.stdin?.write(`/add-dir ${translatedPath}`);
+                    view.proc.stdin?.write(`/add-dir "${translatedPath}"`);
                     setTimeout(() => view.proc?.stdin?.write('\r'), 50);
                   }
                 })
@@ -8006,7 +8006,14 @@ var VaultTerminalPlugin = class extends import_obsidian.Plugin {
             item
               .setTitle('Send file path to Claude')
               .setIcon('bot')
-              .onClick(() => {
+              .onClick(async () => {
+                const leaves = this.app.workspace.getLeavesOfType(VIEW_TYPE);
+                if (leaves.length === 0) {
+                  const parentPath = file.parent ? file.parent.path : "";
+                  const vaultPath = this.getVaultPath();
+                  const dir = parentPath ? `${vaultPath}/${parentPath}` : vaultPath;
+                  await this.createNewTab(dir);
+                }
                 const absolutePath = `"${this.getPath(this.getVaultPath() + '/' + file.path)}" `;
                 this.sendTextToTerminal(absolutePath);
               })
