@@ -7948,21 +7948,27 @@ var VaultTerminalPlugin = class extends import_obsidian.Plugin {
     this.registerEvent(
       this.app.workspace.on('file-menu', (menu, file, source) => {
         if (file instanceof import_obsidian.TFolder) {
+          const absolutePath = this.app.vault.adapter.getFullPath(file.path);
+          const existingLeaf = this.findLeafByWorkingDir(absolutePath);
+          if (existingLeaf) {
+            menu.addItem(item =>
+              item
+                .setTitle('Focus on existing Claude')
+                .setIcon('eye')
+                .onClick(() => {
+                  this.app.workspace.revealLeaf(existingLeaf);
+                  this.app.workspace.setActiveLeaf(existingLeaf, { focus: true });
+                  const view = existingLeaf.view;
+                  if (view instanceof TerminalView && view.term) view.term.focus();
+                })
+            );
+          }
           menu.addItem(item =>
             item
               .setTitle('Open new Claude here')
               .setIcon('bot')
               .onClick(() => {
-                const absolutePath = this.app.vault.adapter.getFullPath(file.path);
-                const existingLeaf = this.findLeafByWorkingDir(absolutePath);
-                if (existingLeaf) {
-                  this.app.workspace.revealLeaf(existingLeaf);
-                  this.app.workspace.setActiveLeaf(existingLeaf, { focus: true });
-                  const view = existingLeaf.view;
-                  if (view instanceof TerminalView && view.term) view.term.focus();
-                } else {
-                  this.createNewTab(absolutePath);
-                }
+                this.createNewTab(absolutePath);
               })
           );
           const folderBackend = CLI_BACKENDS[this.pluginData.cliBackend || "claude"];
@@ -7972,7 +7978,6 @@ var VaultTerminalPlugin = class extends import_obsidian.Plugin {
                 .setTitle('Open new Claude here (YOLO)')
                 .setIcon('zap')
                 .onClick(() => {
-                  const absolutePath = this.app.vault.adapter.getFullPath(file.path);
                   this.createNewTab(absolutePath, true);
                 })
             );
@@ -7996,11 +8001,11 @@ var VaultTerminalPlugin = class extends import_obsidian.Plugin {
                     const backendKey = this.pluginData.cliBackend || "claude";
                     const flags = (this.pluginData.flagsByProvider || {})[backendKey];
                     if (flags) relaunchCmd += " " + flags;
-                    view.proc.stdin?.write('/exit\r');
+                    view.proc.stdin?.write('\x03');
                     setTimeout(() => {
-                      view.proc?.stdin?.write(`cd "${translatedPath}"\r`);
-                      setTimeout(() => view.proc?.stdin?.write(`${relaunchCmd}\r`), 200);
-                    }, 500);
+                      view.proc?.stdin?.write('/exit\r');
+                      view.proc?.stdin?.write(`cd "${translatedPath}" && clear && ${relaunchCmd}\r`);
+                    }, 100);
                   }
                 })
             );
