@@ -7994,7 +7994,9 @@ var VaultTerminalPlugin = class extends import_obsidian.Plugin {
                   if (view instanceof TerminalView && view.proc && !view.proc.killed) {
                     view.workingDir = absolutePath;
                     view.leaf.updateHeader();
-                    view.proc.stdin?.write(`/add-dir ${absolutePath}\r`);
+                    const translatedPath = this.getPath(absolutePath);
+                    view.proc.stdin?.write(`/add-dir ${translatedPath}`);
+                    setTimeout(() => view.proc?.stdin?.write('\r'), 50);
                   }
                 })
             );
