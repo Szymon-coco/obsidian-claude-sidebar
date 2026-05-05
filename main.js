@@ -6801,6 +6801,10 @@ var TerminalView = class extends import_obsidian.ItemView {
     return VIEW_TYPE;
   }
   getDisplayText() {
+    if (this.workingDir) {
+      const dirName = this.workingDir.replace(/[\/\\]$/, '').split(/[\/\\]/).pop();
+      if (dirName) return `Claude: ${dirName}`;
+    }
     return "Claude";
   }
   getIcon() {
@@ -7402,6 +7406,8 @@ var TerminalView = class extends import_obsidian.ItemView {
     const vaultPath = this.plugin.getVaultPath();
     const resolvedDefault = defaultDir ? path.resolve(vaultPath, defaultDir) : vaultPath;
     const cwd = workingDir || resolvedDefault;
+    this.workingDir = cwd;
+    this.leaf.updateHeader();
     // Persist last working directory for resume
     this.plugin.pluginData.lastCwd = cwd;
     this.plugin.saveData(this.plugin.pluginData);
@@ -7948,7 +7954,15 @@ var VaultTerminalPlugin = class extends import_obsidian.Plugin {
               .setIcon('bot')
               .onClick(() => {
                 const absolutePath = this.app.vault.adapter.getFullPath(file.path);
-                this.createNewTab(absolutePath);
+                const existingLeaf = this.findLeafByWorkingDir(absolutePath);
+                if (existingLeaf) {
+                  this.app.workspace.revealLeaf(existingLeaf);
+                  this.app.workspace.setActiveLeaf(existingLeaf, { focus: true });
+                  const view = existingLeaf.view;
+                  if (view instanceof TerminalView && view.term) view.term.focus();
+                } else {
+                  this.createNewTab(absolutePath);
+                }
               })
           );
           const folderBackend = CLI_BACKENDS[this.pluginData.cliBackend || "claude"];
@@ -8096,6 +8110,17 @@ var VaultTerminalPlugin = class extends import_obsidian.Plugin {
       return;
     }
     await this.createNewTab();
+  }
+  findLeafByWorkingDir(dir) {
+    const leaves = this.app.workspace.getLeavesOfType(VIEW_TYPE);
+    const normalized = dir.replace(/[\/\\]$/, '');
+    for (const leaf of leaves) {
+      const view = leaf.view;
+      if (view instanceof TerminalView && view.workingDir) {
+        if (view.workingDir.replace(/[\/\\]$/, '') === normalized) return leaf;
+      }
+    }
+    return null;
   }
   async createNewTab(workingDir = null, yoloMode = false, continueSession = false) {
     if (!this.layoutReady) return;
