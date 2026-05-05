@@ -7950,7 +7950,7 @@ var VaultTerminalPlugin = class extends import_obsidian.Plugin {
         if (file instanceof import_obsidian.TFolder) {
           menu.addItem(item =>
             item
-              .setTitle('Open Claude here')
+              .setTitle('Open new Claude here')
               .setIcon('bot')
               .onClick(() => {
                 const absolutePath = this.app.vault.adapter.getFullPath(file.path);
@@ -7969,7 +7969,7 @@ var VaultTerminalPlugin = class extends import_obsidian.Plugin {
           if (folderBackend.yoloFlag && !this.pluginData.disableYolo) {
             menu.addItem(item =>
               item
-                .setTitle('Open Claude here (YOLO)')
+                .setTitle('Open new Claude here (YOLO)')
                 .setIcon('zap')
                 .onClick(() => {
                   const absolutePath = this.app.vault.adapter.getFullPath(file.path);
@@ -7977,26 +7977,19 @@ var VaultTerminalPlugin = class extends import_obsidian.Plugin {
                 })
             );
           }
-          // Change working directory of active Claude session
-          const cwdLeaves = this.app.workspace.getLeavesOfType(VIEW_TYPE);
-          if (cwdLeaves.length > 0) {
+          // Change working directory of active Claude session (only if a Claude tab is focused)
+          if (this.lastActiveTerminalLeaf) {
             menu.addItem(item =>
               item
-                .setTitle('Set as Claude working directory')
+                .setTitle('Move active Claude here')
                 .setIcon('folder-input')
                 .onClick(() => {
                   const absolutePath = this.app.vault.adapter.getFullPath(file.path);
-                  let leaf = cwdLeaves[0];
-                  if (this.lastActiveTerminalLeaf && cwdLeaves.includes(this.lastActiveTerminalLeaf)) {
-                    leaf = this.lastActiveTerminalLeaf;
-                  }
-                  const view = leaf.view;
-                  if (view instanceof TerminalView && view.proc && !view.proc.killed) {
+                  const view = this.lastActiveTerminalLeaf.view;
+                  if (view instanceof TerminalView) {
                     view.workingDir = absolutePath;
                     view.leaf.updateHeader();
-                    const translatedPath = this.getPath(absolutePath);
-                    view.proc.stdin?.write(`/add-dir "${translatedPath}"`);
-                    setTimeout(() => view.proc?.stdin?.write('\r'), 50);
+                    view.startShell(absolutePath, view.yoloMode);
                   }
                 })
             );

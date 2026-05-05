@@ -12,7 +12,7 @@ Built by [Derek Larson](https://dtlarson.com) - [Pair with commands →](https:/
 - **Multiple tabs** - Run multiple Claude instances side by side
 - **Embedded Claude** - Full terminal with Claude in your Obsidian sidebar
 - **Folder & file context menu** - Right-click any folder to open Claude in that directory, change an existing tab's working directory, or send a file path to Claude
-- **Directory-aware tabs** - Tab names show the working directory; "Open Claude here" reuses an existing tab for the same folder
+- **Directory-aware tabs** - Tab names show the working directory; "Open new Claude here" reuses an existing tab for the same folder
 - **YOLO mode** - Launch Claude with `--dangerously-skip-permissions` via right-click menus
 - **Multi-backend** - Switch between Claude Code, Codex, OpenCode, Gemini, Kimi Code, GitHub Copilot, and Pi in settings, or via **Switch CLI provider…** in the command palette
 
@@ -81,7 +81,7 @@ https://github.com/user-attachments/assets/de98439a-8a1f-4a8a-9d02-44027d756462
 
 - Click the bot icon in the left ribbon to open Claude
 - Right-click the bot icon for YOLO mode, folder targeting, or resuming a conversation
-- Right-click any folder for "Open Claude here", "Open Claude here (YOLO)", or "Set as Claude working directory"
+- Right-click any folder for "Open new Claude here", "Open new Claude here (YOLO)", or "Set as Claude working directory"
 - Directory in tab name - Each tab shows its working directory (e.g. "Claude: my-project") so you can tell them apart
 - Use Command Palette (`Cmd+P`) for all commands:
   - **Open Claude Code** / **New Claude Tab** / **Close Claude Tab**
