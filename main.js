@@ -6801,6 +6801,10 @@ var TerminalView = class extends import_obsidian.ItemView {
     return VIEW_TYPE;
   }
   getDisplayText() {
+    if (this.workingDir) {
+      const dirName = this.workingDir.replace(/[\/\\]$/, '').split(/[\/\\]/).pop();
+      if (dirName) return `Claude: ${dirName}`;
+    }
     return "Claude";
   }
   getIcon() {
@@ -7402,6 +7406,8 @@ var TerminalView = class extends import_obsidian.ItemView {
     const vaultPath = this.plugin.getVaultPath();
     const resolvedDefault = defaultDir ? path.resolve(vaultPath, defaultDir) : vaultPath;
     const cwd = workingDir || resolvedDefault;
+    this.workingDir = cwd;
+    this.leaf.updateHeader();
     // Persist last working directory for resume
     this.plugin.pluginData.lastCwd = cwd;
     this.plugin.saveData(this.plugin.pluginData);
@@ -7741,6 +7747,17 @@ var ClaudeSidebarSettingsTab = class extends import_obsidian.PluginSettingTab {
           }
           await this.plugin.saveData(this.plugin.pluginData);
         }));
+    if (currentBackend.yoloFlag) {
+      new import_obsidian.Setting(containerEl)
+        .setName("Disable YOLO mode")
+        .setDesc("Hide all YOLO mode options from menus and commands.")
+        .addToggle(toggle => toggle
+          .setValue(this.plugin.pluginData.disableYolo)
+          .onChange(async (value) => {
+            this.plugin.pluginData.disableYolo = value;
+            await this.plugin.saveData(this.plugin.pluginData);
+          }));
+    }
   }
 };
 var VaultTerminalPlugin = class extends import_obsidian.Plugin {
@@ -7781,7 +7798,7 @@ var VaultTerminalPlugin = class extends import_obsidian.Plugin {
       e.preventDefault();
       const menu = new import_obsidian.Menu();
       const activeBackend = CLI_BACKENDS[this.pluginData.cliBackend || "claude"];
-      if (activeBackend.yoloFlag) {
+      if (activeBackend.yoloFlag && !this.pluginData.disableYolo) {
         menu.addItem((item) => {
           item.setTitle("Open in YOLO mode")
             .setIcon("zap")
@@ -7845,7 +7862,7 @@ var VaultTerminalPlugin = class extends import_obsidian.Plugin {
       name: "New Tab (YOLO mode)",
       checkCallback: (checking) => {
         const backend = CLI_BACKENDS[this.pluginData.cliBackend || "claude"];
-        if (!backend?.yoloFlag) return false;
+        if (!backend?.yoloFlag || this.pluginData.disableYolo) return false;
         if (!checking) this.createNewTab(null, true);
         return true;
       }
@@ -7931,23 +7948,36 @@ var VaultTerminalPlugin = class extends import_obsidian.Plugin {
     this.registerEvent(
       this.app.workspace.on('file-menu', (menu, file, source) => {
         if (file instanceof import_obsidian.TFolder) {
+          const absolutePath = this.app.vault.adapter.getFullPath(file.path);
+          const existingLeaf = this.findLeafByWorkingDir(absolutePath);
+          if (existingLeaf) {
+            menu.addItem(item =>
+              item
+                .setTitle('Focus on existing Claude')
+                .setIcon('eye')
+                .onClick(() => {
+                  this.app.workspace.revealLeaf(existingLeaf);
+                  this.app.workspace.setActiveLeaf(existingLeaf, { focus: true });
+                  const view = existingLeaf.view;
+                  if (view instanceof TerminalView && view.term) view.term.focus();
+                })
+            );
+          }
           menu.addItem(item =>
             item
               .setTitle('Open Claude here')
               .setIcon('bot')
               .onClick(() => {
-                const absolutePath = this.app.vault.adapter.getFullPath(file.path);
                 this.createNewTab(absolutePath);
               })
           );
           const folderBackend = CLI_BACKENDS[this.pluginData.cliBackend || "claude"];
-          if (folderBackend.yoloFlag) {
+          if (folderBackend.yoloFlag && !this.pluginData.disableYolo) {
             menu.addItem(item =>
               item
                 .setTitle('Open Claude here (YOLO)')
                 .setIcon('zap')
                 .onClick(() => {
-                  const absolutePath = this.app.vault.adapter.getFullPath(file.path);
                   this.createNewTab(absolutePath, true);
                 })
             );
@@ -7957,7 +7987,14 @@ var VaultTerminalPlugin = class extends import_obsidian.Plugin {
             item
               .setTitle('Send file path to Claude')
               .setIcon('bot')
-              .onClick(() => {
+              .onClick(async () => {
+                const leaves = this.app.workspace.getLeavesOfType(VIEW_TYPE);
+                if (leaves.length === 0) {
+                  const parentPath = file.parent ? file.parent.path : "";
+                  const vaultPath = this.getVaultPath();
+                  const dir = parentPath ? `${vaultPath}/${parentPath}` : vaultPath;
+                  await this.createNewTab(dir);
+                }
                 const absolutePath = `"${this.getPath(this.getVaultPath() + '/' + file.path)}" `;
                 this.sendTextToTerminal(absolutePath);
               })
@@ -8064,6 +8101,17 @@ var VaultTerminalPlugin = class extends import_obsidian.Plugin {
       return;
     }
     await this.createNewTab();
+  }
+  findLeafByWorkingDir(dir) {
+    const leaves = this.app.workspace.getLeavesOfType(VIEW_TYPE);
+    const normalized = dir.replace(/[\/\\]$/, '');
+    for (const leaf of leaves) {
+      const view = leaf.view;
+      if (view instanceof TerminalView && view.workingDir) {
+        if (view.workingDir.replace(/[\/\\]$/, '') === normalized) return leaf;
+      }
+    }
+    return null;
   }
   async createNewTab(workingDir = null, yoloMode = false, continueSession = false) {
     if (!this.layoutReady) return;
